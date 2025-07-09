@@ -1,0 +1,10 @@
+id,label,type,details
+user-Alice,Alice,user,"Senior Security Analyst"
+user-Bob,Bob,user,"Junior SOC Analyst"
+host-workstation1,Workstation-1,host,"Primary workstation for Alice"
+host-webserver,WebServer,host,"Public-facing web server"
+ip-192-168-1-10,192.168.1.10,ip,"Internal IP address"
+ip-10-0-0-5,10.0.0.5,ip,"Server IP address"
+threat-phishing-1,Phishing-Attempt-1,threat,"Phishing email detected from suspicious domain"
+asset-db,Primary-DB,asset,"Main production database"
+system-auth,Auth-System,system,"Authentication service" 

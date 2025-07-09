@@ -1,0 +1,33 @@
+version: "3.7"
+
+networks:
+  default:
+    name: global
+    external: true
+services:
+
+  splunk:
+    platform: linux/amd64
+    build:
+      dockerfile: ./docker/splunk/Dockerfile
+      context: ./
+    labels:
+      # routers.<uniqueName> and services.<uniqueName>
+      - traefik.enable=true
+      - traefik.http.routers.knowledgemapper.rule=Host(`knowledgemapper.mac.splunk.engineer`)
+      - traefik.http.routers.knowledgemapper.entrypoints=https
+#      - traefik.http.routers.knowledgemapper.middlewares=https-redirect
+      - traefik.http.routers.knowledgemapper.tls=true
+      - traefik.http.services.knowledgemapper.loadbalancer.server.scheme=https
+    environment:
+      - SPLUNK_START_ARGS=--accept-license
+      - SPLUNK_PASSWORD=Chang3d!
+      - SPLUNK_HEC_TOKEN=abcd1234
+      - SPLUNK_HTTP_ENABLESSL=true
+      - AOB_TEST=true
+    volumes:
+      - "./packages/knowledge-mapper/stage:/opt/splunk/etc/apps/knowledge-mapper"
+    ports:
+      - "8000" # Web UI
+      - "8088" # HEC
+      - "8089" # REST API

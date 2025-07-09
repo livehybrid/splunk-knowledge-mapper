@@ -1,0 +1,4 @@
+<?xml version="1.0"?>
+<view template="knowledge-mapper:/templates/finder.html" type="html">
+	<label>Finder</label>
+</view>

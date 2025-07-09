@@ -1,0 +1,9 @@
+source,target,label,description
+user-Alice,host-workstation1,logged_in,"Alice logged into her workstation"
+user-Bob,host-webserver,accessed,"Bob accessed the web server"
+host-workstation1,ip-10-0-0-5,connected_to,"Workstation connected to server IP"
+threat-phishing-1,user-Alice,targeted,"Phishing email targeted Alice"
+host-webserver,asset-db,queried,"Web server queried the database"
+user-Alice,system-auth,authenticated,"Alice authenticated successfully"
+user-Bob,system-auth,failed_login,"Bob had a failed login attempt"
+ip-192-168-1-10,host-webserver,scanned,"Internal IP scanned the web server" 
