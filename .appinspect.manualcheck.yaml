@@ -1,0 +1,4 @@
+  check_for_console_log_injection_in_javascript:
+    comment: 'Manual check'
+  check_for_remote_code_execution_in_javascript:
+    comment: 'Manual check'
