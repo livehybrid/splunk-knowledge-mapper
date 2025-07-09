@@ -32,9 +32,6 @@ jobs:
         with:
           python-version: "3.9"
 
-      - name: Install UCC Framework
-        run: pip install splunk-add-on-ucc-framework
-
       - name: Determine Version
         id: version
         shell: bash
@@ -52,19 +49,11 @@ jobs:
       - name: Install dependencies
         run: yarn install
 
-      - name: Generate UCC components
-        run: |
-          # Generate UCC framework components
-          ucc-gen --source ucc-app -o build/
-          
-          # Copy generated files to React app structure
-          cp -R build/cim-plicity/* packages/cim-plicity/src/main/resources/splunk/
-
       - name: Build Splunk app
         run: yarn run build
 
       - name: Update app version
-        working-directory: packages/cim-plicity/stage
+        working-directory: packages/knowledge-mapper/stage
         run: |
           # Update app.conf with the calculated version (both [id] and [launcher] stanzas)
           if [ -f "default/app.conf" ]; then
@@ -78,7 +67,7 @@ jobs:
           
           # Update package id to match directory name without version suffix
           if [ -f "default/app.conf" ]; then
-            sed -i "s/id = .*/id = cim-plicity/g" default/app.conf
+            sed -i "s/id = .*/id = knowledge-mapper/g" default/app.conf
           fi
           
           # Add reload trigger for splunk_create.conf if missing
@@ -98,14 +87,14 @@ jobs:
         shell: bash
         run: |
           mkdir -p dist
-          if [ -d "packages/cim-plicity/stage" ]; then
+          if [ -d "packages/knowledge-mapper/stage" ]; then
             # Create a properly named directory structure for the tarball
-            mkdir -p temp-package/cim-plicity
-            cp -r packages/cim-plicity/stage/* temp-package/cim-plicity/
+            mkdir -p temp-package/knowledge-mapper
+            cp -r packages/knowledge-mapper/stage/* temp-package/knowledge-mapper/
             
             # Create tarball with proper directory structure (avoids ./ prefixes and naming issues)
             cd temp-package
-            tar -czf ../dist/cim-plicity-${{ steps.version.outputs.VERSION_WITH_HASH }}.tar.gz cim-plicity/
+            tar -czf ../dist/knowledge-mapper-${{ steps.version.outputs.VERSION_WITH_HASH }}.tar.gz knowledge-mapper/
             
             # Cleanup
             cd ..
@@ -125,7 +114,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: stage-contents
-          path: packages/cim-plicity/stage/
+          path: packages/knowledge-mapper/stage/
 
   appinspect:
     name: quality-appinspect
