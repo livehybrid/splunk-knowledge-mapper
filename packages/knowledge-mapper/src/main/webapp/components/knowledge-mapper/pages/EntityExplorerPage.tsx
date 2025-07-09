@@ -10,7 +10,7 @@ import { GraphData, EntityNode, EntityEdge } from '../types/entityExplorer';
 // import { toast } from '../hooks/use-toast';
 import Button from '@splunk/react-ui/Button';
 import SidePanel from '@splunk/react-ui/SidePanel';
-import MultiSelect from '@splunk/react-ui/MultiSelect';
+import Multiselect from '@splunk/react-ui/Multiselect';
 import Switch from '@splunk/react-ui/Switch';
 import { NetworkGraphDisplayHandles } from '../components/NetworkGraphDisplay';
 
@@ -128,16 +128,16 @@ const EntityExplorerPage: React.FunctionComponent = () => {
                         nodes={allEntities}
                     />
                     <GraphDegreesControl value={degrees} onChange={setDegrees} />
-                    <MultiSelect
+                    <Multiselect
                         values={typeFilters}
                         onChange={(_, { values }) => setTypeFilters(values.map(String))}
                         placeholder="Filter by type..."
                         inline
                     >
                         {entityTypes.map(type => (
-                            <MultiSelect.Option key={type.value} label={type.label} value={type.value} />
+                            <Multiselect.Option key={type.value} label={type.label} value={type.value} />
                         ))}
-                    </MultiSelect>
+                    </Multiselect>
                     <Switch
                         value={showAnomalies}
                         onClick={() => setShowAnomalies(!showAnomalies)}
