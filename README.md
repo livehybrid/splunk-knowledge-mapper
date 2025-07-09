@@ -2,6 +2,11 @@
 
 Knowledge Mapper is a powerful Splunk application designed to help users explore and visualize complex relationships within their data. It transforms raw data into an interactive network graph, making it easy to discover hidden connections, trace paths between entities, and identify anomalous patterns. This app was built for the Splunk Hackathon.
 
+<img width="1728" alt="knowledge-mapper-1" src="https://github.com/user-attachments/assets/fff6e85e-960f-4d41-8454-3325e3a53319" />
+
+<img width="1728" alt="knowledge-mapper-2" src="https://github.com/user-attachments/assets/88bd231c-0937-4c8a-8c53-c572db6803a8" />
+
+
 ## Key Features
 
 *   **Interactive Network Graph:** Visualize entities and their relationships in a dynamic, easy-to-navigate graph.
