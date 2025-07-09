@@ -16,11 +16,8 @@ const entries = fs
 module.exports = webpackMerge(baseConfig, {
     entry: entries,
     resolve: {
-        extensions: ['.js', '.jsx', '.ts', '.tsx'],
+        extensions: ['.js', '.jsx', 'ts', '.tsx'],
         modules: [path.resolve(__dirname, '../../node_modules'), 'node_modules'],
-        alias: {
-            '@splunk/react-ui': path.resolve(__dirname, '../../node_modules/@splunk/react-ui'),
-        },
     },
     output: {
         path: path.join(__dirname, 'stage/appserver/static/pages/'),
