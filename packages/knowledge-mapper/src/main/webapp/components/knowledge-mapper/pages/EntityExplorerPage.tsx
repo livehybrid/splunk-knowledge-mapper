@@ -65,7 +65,7 @@ const EntityExplorerPage: React.FunctionComponent = () => {
     useEffect(() => {
         if (selectedEntityId) {
             setIsLoading(true);
-            getGraphDataIteratively(selectedEntityId, degrees, showAnomalies)
+            getGraphDataIteratively(selectedEntityId, degrees)
                 .then((data: GraphData) => {
                     setGraphData(data);
                     const types = new Set(data.nodes.map((n: EntityNode) => n.type));
@@ -79,7 +79,7 @@ const EntityExplorerPage: React.FunctionComponent = () => {
                     setIsLoading(false);
                 });
         }
-    }, [selectedEntityId, degrees, showAnomalies]);
+    }, [selectedEntityId, degrees]);
 
     const handleNodeClick = (node: EntityNode) => {
         setSelectedItem(node);

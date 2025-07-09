@@ -65,13 +65,12 @@ export const getUniqueEntities = async (): Promise<EntityNode[]> => {
  * Fetches all relationships for a given list of nodes.
  * @param nodes The list of node IDs to find relationships for.
  */
-export const getRelationshipsForNodes = async (nodes: string[], withAnomalies: boolean = false): Promise<any[]> => {
+export const getRelationshipsForNodes = async (nodes: string[]): Promise<any[]> => {
     if (nodes.length === 0) {
         return [];
     }
     const nodeFilter = `(source IN (${nodes.map(n => `"${n}"`).join(',')})) OR (target IN (${nodes.map(n => `"${n}"`).join(',')}))`;
-    const anomalyArg = withAnomalies ? ` with_anomalies="true"` : '';
-    const search = `\`get_relationships_for_nodes(node_filter="${nodeFilter}"${anomalyArg})\``;
+    const search = `| \`get_relationships_for_nodes(node_filter="${nodeFilter}")\``;
     return runSearch(search);
 };
 
@@ -81,7 +80,7 @@ export const getRelationshipsForNodes = async (nodes: string[], withAnomalies: b
  * @param degrees The number of degrees of separation to fetch.
  * @returns A promise that resolves to the full graph data.
  */
-export const getGraphDataIteratively = async (startEntityId: string, degrees: number, withAnomalies: boolean = false): Promise<GraphData> => {
+export const getGraphDataIteratively = async (startEntityId: string, degrees: number): Promise<GraphData> => {
     let nodesToExplore: Set<string> = new Set([startEntityId]);
     let exploredNodes: Set<string> = new Set();
     let allEdges: Map<string, any> = new Map();
@@ -91,7 +90,7 @@ export const getGraphDataIteratively = async (startEntityId: string, degrees: nu
             break; // No new nodes to explore
         }
         
-        const relationships = await getRelationshipsForNodes(Array.from(nodesToExplore), withAnomalies);
+        const relationships = await getRelationshipsForNodes(Array.from(nodesToExplore));
 
         // Add the current batch of nodes to the explored set
         nodesToExplore.forEach(node => exploredNodes.add(node));
