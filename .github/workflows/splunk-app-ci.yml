@@ -110,11 +110,11 @@ jobs:
           name: dist
           path: dist/*
 
-      - name: Upload Stage Directory for Inspection
-        uses: actions/upload-artifact@v5
-        with:
-          name: stage-contents
-          path: packages/knowledge-mapper/stage/
+      # - name: Upload Stage Directory for Inspection
+      #   uses: actions/upload-artifact@v5
+      #   with:
+      #     name: stage-contents
+      #     path: packages/knowledge-mapper/stage/
 
   appinspect:
     name: quality-appinspect
