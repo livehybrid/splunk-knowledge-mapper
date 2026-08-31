@@ -116,6 +116,22 @@ jobs:
           name: stage-contents
           path: packages/knowledge-mapper/stage/
 
+  unit-test:
+    name: unit-test (jest)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: "20"
+          cache: yarn
+      - name: Install and test
+        run: |
+          yarn install --frozen-lockfile
+          yarn test
+
   appinspect:
     name: quality-appinspect
     needs: package
@@ -129,6 +145,7 @@ jobs:
     name: quality-appinspect-api
     needs:
       - appinspect
+      - unit-test
     uses: livehybrid/deploy-splunk-app-action/.github/workflows/appinspect-api.yml@main
     secrets:
       splunkbase_username: ${{ secrets.SPLUNKBASE_USERNAME }}
