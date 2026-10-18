@@ -115,15 +115,18 @@ async function waitForGraph(page, expectedNodes) {
     await page.waitForTimeout(1500); // let edges and labels settle after layout
 }
 
-async function checkExplorer(page, rootId, url, shot) {
-    const want = expectedGraph(rootId, DEFAULT_DEGREES);
+async function checkExplorer(page, rootId, url, shot, degrees = DEFAULT_DEGREES) {
+    const want = expectedGraph(rootId, degrees);
     const root = entities.find((e) => e.id === rootId);
-    console.log(`root ${rootId}: expecting ${want.labels.length} nodes, ${want.edges.length} edges`);
+    console.log(`root ${rootId}, ${degrees} degree(s): expecting ${want.labels.length} nodes, ${want.edges.length} edges`);
 
     const consoleErrors = [];
     page.on('pageerror', (err) => consoleErrors.push(`pageerror: ${err.message}`));
 
     await page.goto(url);
+    if (degrees !== DEFAULT_DEGREES) {
+        await page.getByLabel('Degrees of Separation').fill(String(degrees));
+    }
     try {
         await waitForGraph(page, want.labels.length);
     } finally {
@@ -164,11 +167,15 @@ test('explorer opens on the first entity and draws its graph', async ({ page }) 
     await checkExplorer(page, entities[0].id, `/en-US/app/${APP}/start`, 'explorer-default');
 });
 
-test('explorer draws the graph for an entity named in the URL', async ({ page }) => {
-    // A different root, reached through the entityId parameter, so a graph that
-    // only happens to match the default view cannot pass both tests.
-    const other = entities.find((e) => e.id !== entities[0].id && relationships.some((r) => r.source === e.id || r.target === e.id)
-        && expectedGraph(e.id, DEFAULT_DEGREES).labels.join() !== expectedGraph(entities[0].id, DEFAULT_DEGREES).labels.join());
-    expect(other, 'no second entity with a different graph in the lookups').toBeTruthy();
-    await checkExplorer(page, other.id, `/en-US/app/${APP}/start?entityId=${encodeURIComponent(other.id)}`, 'explorer-entity');
+test('explorer draws one degree around an entity named in the URL', async ({ page }) => {
+    // A different root, reached through the entityId parameter, at one degree
+    // via the degrees control, so a graph that only happens to match the
+    // default view cannot pass both tests.
+    const defaultLabels = expectedGraph(entities[0].id, DEFAULT_DEGREES).labels.join();
+    const other = entities.find((e) => e.id !== entities[0].id
+        && relationships.some((r) => r.source === e.id || r.target === e.id)
+        && expectedGraph(e.id, 1).labels.join() !== defaultLabels);
+    expect(other, 'no second entity with a different one-degree graph in the lookups').toBeTruthy();
+    await checkExplorer(page, other.id, `/en-US/app/${APP}/start?entityId=${encodeURIComponent(other.id)}`,
+        'explorer-entity-1-degree', 1);
 });

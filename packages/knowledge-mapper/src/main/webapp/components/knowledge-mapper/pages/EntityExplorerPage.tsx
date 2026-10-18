@@ -58,6 +58,9 @@ const EntityExplorerPage: React.FunctionComponent = () => {
             })
             .catch((err: Error) => {
                 setError(err);
+                // Nothing else ends the initial loading state, so without this
+                // the error is never shown and the page spins forever.
+                setIsLoading(false);
                 console.error("Failed to fetch unique entities:", err);
             });
     }, [initialEntityIdFromUrl]);

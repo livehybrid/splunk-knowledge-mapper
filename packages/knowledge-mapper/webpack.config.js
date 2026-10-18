@@ -17,7 +17,11 @@ module.exports = webpackMerge(baseConfig, {
     entry: entries,
     resolve: {
         extensions: ['.js', '.jsx', 'ts', '.tsx'],
-        modules: [path.resolve(__dirname, '../../node_modules'), 'node_modules'],
+        // Nearest node_modules first, the workspace root as fallback. Root-first
+        // made @splunk/search-job (rxjs ^5) resolve the root's rxjs 7, hoisted
+        // there for `concurrently`, and every search threw
+        // "_rxjs.Observable.from is not a function".
+        modules: ['node_modules', path.resolve(__dirname, '../../node_modules')],
     },
     output: {
         path: path.join(__dirname, 'stage/appserver/static/pages/'),
