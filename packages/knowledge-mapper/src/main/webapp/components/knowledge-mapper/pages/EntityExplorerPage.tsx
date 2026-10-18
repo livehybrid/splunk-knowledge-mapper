@@ -58,27 +58,38 @@ const EntityExplorerPage: React.FunctionComponent = () => {
             })
             .catch((err: Error) => {
                 setError(err);
+                // Nothing else ends the initial loading state, so without this
+                // the error is never shown and the page spins forever.
+                setIsLoading(false);
                 console.error("Failed to fetch unique entities:", err);
             });
     }, [initialEntityIdFromUrl]);
 
     useEffect(() => {
+        // A slower, older fetch (say three degrees) must not overwrite the graph
+        // for the entity and degrees now selected, so drop superseded results.
+        let superseded = false;
         if (selectedEntityId) {
             setIsLoading(true);
             getGraphDataIteratively(selectedEntityId, degrees)
                 .then((data: GraphData) => {
+                    if (superseded) return;
                     setGraphData(data);
                     const types = new Set(data.nodes.map((n: EntityNode) => n.type));
                     setTypeFilters(Array.from(types) as string[]);
                 })
                 .catch((err: Error) => {
+                    if (superseded) return;
                     setError(err);
                     console.error("Failed to fetch graph data:", err);
                 })
                 .finally(() => {
-                    setIsLoading(false);
+                    if (!superseded) setIsLoading(false);
                 });
         }
+        return () => {
+            superseded = true;
+        };
     }, [selectedEntityId, degrees]);
 
     const handleNodeClick = (node: EntityNode) => {

@@ -1,0 +1,21 @@
+# Ephemeral Splunk for the Playwright e2e check. APP_DIR points at the staged
+# app the CI package job built, so the container sees what a release ships.
+services:
+  splunk:
+    image: splunk/splunk:${SPLUNK_IMAGE_TAG:-10.4.0}
+    container_name: knowledge_mapper_e2e_splunk
+    environment:
+      SPLUNK_START_ARGS: --accept-license
+      SPLUNK_GENERAL_TERMS: --accept-sgt-current-at-splunk-com
+      SPLUNK_PASSWORD: Changeme1!
+    ports:
+      - "8000:8000"
+      - "8089:8089"
+    volumes:
+      - ${APP_DIR:-../../packages/knowledge-mapper/stage}:/opt/splunk/etc/apps/knowledge-mapper
+    healthcheck:
+      test: ["CMD", "curl", "-sSf", "http://localhost:8000/en-US/account/login"]
+      interval: 10s
+      timeout: 5s
+      retries: 60
+      start_period: 60s
