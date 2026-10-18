@@ -66,22 +66,30 @@ const EntityExplorerPage: React.FunctionComponent = () => {
     }, [initialEntityIdFromUrl]);
 
     useEffect(() => {
+        // A slower, older fetch (say three degrees) must not overwrite the graph
+        // for the entity and degrees now selected, so drop superseded results.
+        let superseded = false;
         if (selectedEntityId) {
             setIsLoading(true);
             getGraphDataIteratively(selectedEntityId, degrees)
                 .then((data: GraphData) => {
+                    if (superseded) return;
                     setGraphData(data);
                     const types = new Set(data.nodes.map((n: EntityNode) => n.type));
                     setTypeFilters(Array.from(types) as string[]);
                 })
                 .catch((err: Error) => {
+                    if (superseded) return;
                     setError(err);
                     console.error("Failed to fetch graph data:", err);
                 })
                 .finally(() => {
-                    setIsLoading(false);
+                    if (!superseded) setIsLoading(false);
                 });
         }
+        return () => {
+            superseded = true;
+        };
     }, [selectedEntityId, degrees]);
 
     const handleNodeClick = (node: EntityNode) => {
