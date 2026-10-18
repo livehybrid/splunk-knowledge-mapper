@@ -1,0 +1,11 @@
+{
+  "name": "knowledge-mapper-e2e",
+  "private": true,
+  "description": "Playwright checks of the packaged app on a real Splunk",
+  "scripts": {
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.62.1"
+  }
+}
