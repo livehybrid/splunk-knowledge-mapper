@@ -69,6 +69,16 @@ jobs:
           if [ -f "app.manifest" ]; then
             sed -i "s/\"version\": \".*\"/\"version\": \"${{ steps.version.outputs.VERSION_WITH_HASH }}\"/g" app.manifest
           fi
+
+          # [install] build must change every release, or browsers keep serving the
+          # old cached JS after an upgrade. Derived from the numeric version.
+          V="${{ steps.version.outputs.TAG_VERSION }}"
+          IFS=. read -r MAJ MIN PAT <<< "${V%%[-+]*}"
+          if (( 10#$MIN > 99 || 10#${PAT:-0} > 99 )); then echo "::error::version $V does not fit the build scheme"; exit 1; fi
+          BUILD=$(( 10#$MAJ * 10000 + 10#$MIN * 100 + 10#${PAT:-0} ))
+          if grep -q '^build *=' default/app.conf; then sed -i "s/^build *=.*/build = ${BUILD}/" default/app.conf
+          else sed -i "/^\[install\]/a build = ${BUILD}" default/app.conf; fi
+          grep -q "^build = ${BUILD}$" default/app.conf
           
           # Update package id to match directory name without version suffix
           if [ -f "default/app.conf" ]; then
@@ -128,9 +138,12 @@ jobs:
           conf.read_string(raw)
           got = {"launcher.version": conf.get("launcher", "version", fallback=None),
                  "id.version": conf.get("id", "version", fallback=None),
+                 "install.build": conf.get("install", "build", fallback=None),
                  **({"app.manifest": manifest["info"]["id"]["version"]} if manifest else {})}
           print(sys.argv[1], got)
-          bad = [k for k, v in got.items() if v != want]
+          maj, mn, pat = (want.split("+")[0].split("-")[0].split(".") + ["0"])[:3]
+          want_build = str(int(maj) * 10000 + int(mn) * 100 + int(pat))
+          bad = [k for k, v in got.items() if v != (want_build if k == "install.build" else want)]
           if bad:
               sys.exit(f"package metadata is wrong for {want}: {bad}")
           PY
