@@ -22,8 +22,14 @@ const DEFAULT_DEGREES = 3; // the explorer's initial "degrees" setting
 const ANOMALY_SUFFIX = ' (Anomaly!)';
 
 let entities; // [{ id, label, type }] in lookup order
-let relationships; // [{ source, target, label }]
-let anomalousEdgeKeys; // Set of "source|target|label" Splunk flags as anomalous
+let relationships; // [{ id, source, target, label, isAnomaly }]
+let anomalousEdgeKeys; // Set of "source|target|label" the shipped data marks as anomalous
+
+// Two relationships from the shipped data with the same root and the same
+// label, one anomalous and one not, so no rule keyed on the label alone can
+// mark one without the other.
+const KNOWN_ANOMALY = { id: 'e8', source: 'userX', target: 'hostB', label: 'logged_onto' };
+const KNOWN_NORMAL = { id: 'e1', source: 'userX', target: 'hostZ', label: 'logged_onto' };
 
 async function oneshot(api, spl) {
     const r = await api.post(`/servicesNS/${USER}/${APP}/search/jobs/export`, {
@@ -71,13 +77,20 @@ test.beforeAll(async () => {
         httpCredentials: { username: USER, password: PASS },
     });
     entities = await oneshot(api, '| inputlookup entities_lookup | table id label type');
-    relationships = await oneshot(api, '| inputlookup relationships_lookup | table source target label');
-    // Anomalies are whatever Splunk's data says they are; the UI must mark those.
-    const joined = await oneshot(api, '| `knowledge_graph_join` | where isAnomaly="true" | table source target label');
-    anomalousEdgeKeys = new Set(joined.map((r) => `${r.source}|${r.target}|${r.label}`));
+    relationships = await oneshot(api, '| inputlookup relationships_lookup | table id source target label isAnomaly');
     await api.dispose();
+    // Anomalies are what the data says: the relationships lookup's own
+    // isAnomaly column, read raw, not through the app's macros.
+    anomalousEdgeKeys = new Set(relationships
+        .filter((r) => String(r.isAnomaly || '').toLowerCase() === 'true')
+        .map((r) => `${r.source}|${r.target}|${r.label}`));
     expect(entities.length, 'entities lookup is empty in Splunk').toBeGreaterThan(1);
     expect(relationships.length, 'relationships lookup is empty in Splunk').toBeGreaterThan(1);
+    expect(anomalousEdgeKeys.size, 'the shipped data marks no relationship as anomalous').toBeGreaterThan(0);
+    const byId = (id) => relationships.find((r) => r.id === id);
+    expect(byId(KNOWN_ANOMALY.id), 'known-anomalous relationship changed').toMatchObject({ ...KNOWN_ANOMALY, isAnomaly: 'true' });
+    expect(byId(KNOWN_NORMAL.id), 'known-normal relationship changed').toMatchObject(KNOWN_NORMAL);
+    expect(String(byId(KNOWN_NORMAL.id).isAnomaly || '').toLowerCase()).not.toBe('true');
 });
 
 async function login(page) {
@@ -178,4 +191,58 @@ test('explorer draws one degree around an entity named in the URL', async ({ pag
     expect(other, 'no second entity with a different one-degree graph in the lookups').toBeTruthy();
     await checkExplorer(page, other.id, `/en-US/app/${APP}/start?entityId=${encodeURIComponent(other.id)}`,
         'explorer-entity-1-degree', 1);
+});
+
+// How each drawn edge looks: React Flow's accessible name ("Edge from <source>
+// to <target>"), its label text and the colour and width its line is painted.
+async function readEdgeLooks(page) {
+    return page.locator('.react-flow__edges .react-flow__edge').evaluateAll((els) => els.map((el) => {
+        const line = getComputedStyle(el.querySelector('.react-flow__edge-path'));
+        const [r, g, b] = (line.stroke.match(/\d+/g) || []).map(Number);
+        return {
+            name: el.getAttribute('aria-label'),
+            text: (el.querySelector('.react-flow__edge-text') || {}).textContent || '',
+            red: r > 200 && g < 120 && b < 120,
+            width: parseFloat(line.strokeWidth),
+        };
+    }));
+}
+
+test('Highlight Anomalies marks the anomalous relationships and no others', async ({ page }) => {
+    const rootId = KNOWN_ANOMALY.source;
+    const want = expectedGraph(rootId, DEFAULT_DEGREES);
+    const wantRed = want.edges
+        .filter((e) => anomalousEdgeKeys.has(`${e.source}|${e.target}|${e.label}`))
+        .map((e) => `Edge from ${e.source} to ${e.target}`).sort();
+    expect(wantRed.length, 'no anomalous relationship near the root').toBeGreaterThan(0);
+    expect(wantRed.length, 'every relationship near the root is anomalous').toBeLessThan(want.edges.length);
+
+    await page.goto(`/en-US/app/${APP}/start?entityId=${encodeURIComponent(rootId)}`);
+    await waitForGraph(page, want.labels.length);
+    const name = (e) => `Edge from ${e.source} to ${e.target}`;
+
+    // Off: nothing is painted red, so the highlight is the switch's doing.
+    const before = await readEdgeLooks(page);
+    expect(before.length).toBe(want.edges.length);
+    expect(before.filter((e) => e.red).map((e) => e.name)).toEqual([]);
+
+    await page.getByText('Highlight Anomalies', { exact: true }).click();
+    await expect
+        .poll(async () => (await readEdgeLooks(page)).filter((e) => e.red).length, { timeout: 10000 })
+        .toBeGreaterThan(0);
+    const after = await readEdgeLooks(page);
+    await page.screenshot({ path: 'e2e-results/explorer-anomalies.png' });
+    console.log('edges after highlight:', JSON.stringify(after));
+
+    // Exactly the anomalous relationships are red, thicker and labelled.
+    expect(after.filter((e) => e.red).map((e) => e.name).sort()).toEqual(wantRed);
+    const anomaly = after.find((e) => e.name === name(KNOWN_ANOMALY));
+    const normal = after.find((e) => e.name === name(KNOWN_NORMAL));
+    expect(anomaly, 'known-anomalous relationship not drawn').toBeTruthy();
+    expect(normal, 'known-normal relationship not drawn').toBeTruthy();
+    expect(anomaly.red).toBe(true);
+    expect(anomaly.text).toContain(ANOMALY_SUFFIX.trim());
+    expect(anomaly.width).toBeGreaterThan(normal.width);
+    expect(normal.red).toBe(false);
+    expect(normal.text).not.toContain(ANOMALY_SUFFIX.trim());
 });

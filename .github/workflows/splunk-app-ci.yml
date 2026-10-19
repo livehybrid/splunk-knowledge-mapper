@@ -176,6 +176,21 @@ jobs:
           yarn install --frozen-lockfile
           yarn test
 
+  lookups-check:
+    name: lookups-check (packaged lookups are where Splunk reads them)
+    needs: package
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+      - name: Download staged app
+        uses: actions/download-artifact@v8
+        with:
+          name: stage-contents
+          path: stage-app
+      - name: Check lookups
+        run: python3 .github/scripts/check_lookups.py stage-app
+
   e2e-playwright:
     name: e2e-playwright (real Splunk explorer) (${{ matrix.splunk }})
     needs: package
@@ -260,4 +275,5 @@ jobs:
     needs:
       - appinspect
       - e2e-playwright
+      - lookups-check
     uses: livehybrid/deploy-splunk-app-action/.github/workflows/publish.yml@main 
