@@ -85,7 +85,7 @@ Follow these steps if you want to modify the source code.
 By default, the app uses `entities.csv` and `relationships.csv`. You can replace these with your own data.
 
 1.  **Prepare Your Data:** Ensure your lookup files match the format described in `docs/architecture.md` under the "Data Contract" section.
-2.  **Replace Lookups:** Place your `entities.csv` and `relationships.csv` files in the app's lookup directory (`$SPLUNK_HOME/etc/apps/knowledge_mapper/lookups/`) and restart Splunk.
+2.  **Replace Lookups:** Place your `entities.csv` and `relationships.csv` files in the app's lookup directory (`$SPLUNK_HOME/etc/apps/knowledge-mapper/lookups/`) and restart Splunk.
 
 The app should now be using your custom data.
 
