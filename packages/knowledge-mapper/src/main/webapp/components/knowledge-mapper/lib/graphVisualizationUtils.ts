@@ -10,42 +10,25 @@ export const getColorForType = (type: string) => {
   }
 };
 
-// Helper to assign more intelligent positions to nodes
-export function assignPositions(nodes: EntityNode[], selectedId: string | null): EntityNode[] {
+// Lay the graph out around the explored (root) entity: the root at the
+// origin, everything else on a ring round it. The viewport is centred on the
+// root separately, once React Flow has measured the nodes.
+export function assignPositions(nodes: EntityNode[], rootId: string | null): EntityNode[] {
   const nodeWidth = 250, nodeHeight = 70;
 
-  // If a node is selected, arrange other nodes around it
-  if (selectedId && nodes.find(n => n.id === selectedId)) {
-    const centerNode = nodes.find(n => n.id === selectedId)!;
-    const otherNodes = nodes.filter(n => n.id !== selectedId);
-
-    const centerX = 400, centerY = 150;
-
-    const newPositions: { [id: string]: { x: number, y: number } } = {};
-    newPositions[centerNode.id] = { x: centerX, y: centerY };
-
-    if (otherNodes.length === 2) {
-      // Create a "V" shape for 2 neighbors, as in your example
-      const yPos = centerY + 180;
-      const xOffset = 300;
-      newPositions[otherNodes[0].id] = { x: centerX - xOffset, y: yPos };
-      newPositions[otherNodes[1].id] = { x: centerX + xOffset, y: yPos };
-    } else if (otherNodes.length > 0) {
-      // Use a circular layout for other cases
-      const radius = 280;
-      const angleStep = (2 * Math.PI) / otherNodes.length;
-      otherNodes.forEach((node, idx) => {
-        const angle = angleStep * idx - (Math.PI / 2); // Start from the top
-        newPositions[node.id] = {
-          x: centerX + radius * Math.cos(angle),
-          y: centerY + radius * Math.sin(angle),
-        };
-      });
-    }
-    return nodes.map(n => ({...n, ...newPositions[n.id]!}));
+  if (rootId && nodes.find(n => n.id === rootId)) {
+    const otherNodes = nodes.filter(n => n.id !== rootId);
+    const newPositions: { [id: string]: { x: number, y: number } } = { [rootId]: { x: 0, y: 0 } };
+    const radius = Math.max(220, otherNodes.length * 45);
+    const angleStep = (2 * Math.PI) / Math.max(otherNodes.length, 1);
+    otherNodes.forEach((node, idx) => {
+      const angle = angleStep * idx - (Math.PI / 2); // start from the top
+      newPositions[node.id] = { x: radius * Math.cos(angle), y: radius * Math.sin(angle) };
+    });
+    return nodes.map(n => ({ ...n, ...newPositions[n.id] }));
   }
 
-  // Fallback to a smarter grid layout if no node is selected
+  // No root in the data: a grid.
   const margin = 40;
   const perRow = Math.max(3, Math.floor(Math.sqrt(nodes.length)) + 1);
   return nodes.map((node, idx) => {
