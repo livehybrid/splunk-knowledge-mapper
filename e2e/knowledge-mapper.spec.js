@@ -128,6 +128,44 @@ async function waitForGraph(page, expectedNodes) {
     await page.waitForTimeout(1500); // let edges and labels settle after layout
 }
 
+// Where the root entity is drawn relative to the graph's own box on screen.
+// The root is found by its label text, the graph box is React Flow's outer
+// element; the app reads neither, and no layout value from the app is used.
+async function rootOffset(page, rootLabel) {
+    return page.evaluate((label) => {
+        const flow = document.querySelector('.react-flow');
+        const nodes = [...document.querySelectorAll('.react-flow__nodes > .react-flow__node')];
+        const node = nodes.find((n) => n.innerText.trim() === label);
+        if (!flow || !node) return null;
+        const f = flow.getBoundingClientRect();
+        const b = node.getBoundingClientRect();
+        const inside = nodes.every((n) => {
+            const r = n.getBoundingClientRect();
+            return r.left >= f.left - 1 && r.right <= f.right + 1 && r.top >= f.top - 1 && r.bottom <= f.bottom + 1;
+        });
+        return {
+            dx: b.left + b.width / 2 - (f.left + f.width / 2),
+            dy: b.top + b.height / 2 - (f.top + f.height / 2),
+            allInside: inside,
+        };
+    }, rootLabel);
+}
+
+const CENTRE_TOLERANCE_PX = 6;
+
+async function expectRootCentred(page, rootLabel) {
+    let last;
+    // Wait for the viewport to settle on the root (fit after layout).
+    await expect
+        .poll(async () => {
+            last = await rootOffset(page, rootLabel);
+            return !!last && Math.abs(last.dx) <= CENTRE_TOLERANCE_PX && Math.abs(last.dy) <= CENTRE_TOLERANCE_PX;
+        }, { timeout: 10000, message: `root "${rootLabel}" is not centred in the graph` })
+        .toBe(true)
+        .catch((e) => { console.log('root offset from graph centre:', JSON.stringify(last)); throw e; });
+    expect(last.allInside, 'a node is drawn outside the graph area').toBe(true);
+}
+
 async function checkExplorer(page, rootId, url, shot, degrees = DEFAULT_DEGREES) {
     const want = expectedGraph(rootId, degrees);
     const root = entities.find((e) => e.id === rootId);
@@ -163,6 +201,9 @@ async function checkExplorer(page, rootId, url, shot, degrees = DEFAULT_DEGREES)
     const wantMarked = want.edges.filter((e) => anomalousEdgeKeys.has(`${e.source}|${e.target}|${e.label}`));
     const marked = got.edgeLabels.filter((t) => t.endsWith(ANOMALY_SUFFIX)).map((t) => t.replace(ANOMALY_SUFFIX, ''));
     expect(marked.sort()).toEqual(wantMarked.map((e) => e.label).sort());
+
+    // The root entity is in the middle of the graph, and everything fits.
+    await expectRootCentred(page, root.label);
 
     // The header names the root entity.
     await expect(page.getByText('Showing relationships')).toBeVisible();
@@ -245,4 +286,26 @@ test('Highlight Anomalies marks the anomalous relationships and no others', asyn
     expect(anomaly.width).toBeGreaterThan(normal.width);
     expect(normal.red).toBe(false);
     expect(normal.text).not.toContain(ANOMALY_SUFFIX.trim());
+});
+
+test('clicking another entity keeps the explored root centred, exploring from it re-centres', async ({ page }) => {
+    const root = entities[0];
+    const want = expectedGraph(root.id, DEFAULT_DEGREES);
+    await page.goto(`/en-US/app/${APP}/start`);
+    await waitForGraph(page, want.labels.length);
+    await expectRootCentred(page, root.label);
+
+    // Pick a drawn entity that is not the root and click it: that only selects it.
+    const other = entities.find((e) => e.id !== root.id && want.labels.includes(e.label));
+    await page.locator('.react-flow__nodes > .react-flow__node').filter({ hasText: other.label }).first().click();
+    await expect(page.getByText(`Entity: ${other.label}`)).toBeVisible();
+    await page.waitForTimeout(1000);
+    await expectRootCentred(page, root.label);
+
+    // Exploring from it makes it the root, at one degree, in the middle.
+    await page.getByRole('button', { name: 'Explore from this Node' }).click();
+    await waitForGraph(page, expectedGraph(other.id, 1).labels.length);
+    await expect(page.locator('header').getByText(other.label, { exact: true }).first()).toBeVisible();
+    await expectRootCentred(page, other.label);
+    await page.screenshot({ path: 'e2e-results/explorer-explore-from-node.png' });
 });
