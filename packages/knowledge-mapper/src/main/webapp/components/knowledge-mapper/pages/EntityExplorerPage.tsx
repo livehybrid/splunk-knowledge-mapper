@@ -104,6 +104,7 @@ const EntityExplorerPage: React.FunctionComponent = () => {
 
     const handleResetGraph = () => {
         setIsPanelOpen(false);
+        graphRef.current?.resetView();
     };
 
     const onExplore = (nodeId: string) => {
@@ -187,6 +188,7 @@ const EntityExplorerPage: React.FunctionComponent = () => {
                         isLoading={isLoading}
                         error={error}
                         selectedId={selectedItem && 'id' in selectedItem ? selectedItem.id : null}
+                        rootId={selectedEntityId ?? null}
                         onNodeClick={handleNodeClick}
                         onEdgeClick={handleEdgeClick}
                         highlightedPath={{ nodes: pathNodes, edges: pathEdges }}

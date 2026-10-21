@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, forwardRef, useImperativeHandle, useRef } from 'react';
+import React, { useCallback, useEffect, useMemo, forwardRef, useImperativeHandle, useRef } from 'react';
 import { GraphData, EntityNode, EntityEdge } from '../types/entityExplorer';
 import {
   ReactFlow,
@@ -11,6 +11,7 @@ import {
   Edge as RFEdge,
   NodeChange,
   useReactFlow,
+  useNodesInitialized,
   ReactFlowProvider,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
@@ -21,6 +22,7 @@ interface NetworkGraphDisplayProps {
   isLoading: boolean;
   error: Error | null;
   selectedId: string | null;
+  rootId?: string | null;
   onNodeClick?: (node: EntityNode) => void;
   onEdgeClick?: (edge: EntityEdge) => void;
   highlightedPath?: { nodes?: string[], edges?: string[] };
@@ -36,6 +38,7 @@ const NetworkGraphDisplay = forwardRef<NetworkGraphDisplayHandles, NetworkGraphD
   isLoading,
   error,
   selectedId,
+  rootId,
   onNodeClick,
   onEdgeClick,
   highlightedPath,
@@ -51,6 +54,7 @@ const NetworkGraphDisplay = forwardRef<NetworkGraphDisplayHandles, NetworkGraphD
             isLoading={isLoading}
             error={error}
             selectedId={selectedId}
+            rootId={rootId}
             onNodeClick={onNodeClick}
             onEdgeClick={onEdgeClick}
             highlightedPath={highlightedPath}
@@ -67,19 +71,22 @@ const NetworkGraphDisplayComponent = forwardRef<NetworkGraphDisplayHandles, Netw
   isLoading,
   error,
   selectedId,
+  rootId,
   onNodeClick,
   onEdgeClick,
   highlightedPath,
   showAnomalies,
 }, ref) => {
-  const { fitView } = useReactFlow();
+  const { fitView, fitBounds, getNodes } = useReactFlow();
+  const nodesInitialized = useNodesInitialized();
   const graphRef = useRef(null);
 
-  // Always assign positions to currently passed nodes to ensure layout/edges render correctly
+  // Lay out around the explored root. Selecting a node only highlights it;
+  // it must not move the graph.
   const preparedNodes = useMemo(() => {
     if (!data) return [];
-    return assignPositions(data.nodes, selectedId);
-  }, [data, selectedId]);
+    return assignPositions(data.nodes, rootId ?? null);
+  }, [data, rootId]);
 
   // Convert EntityNode/EntityEdge to ReactFlow nodes/edges
   const initialRFNodes: RFNode[] = useMemo(
@@ -129,9 +136,35 @@ const NetworkGraphDisplayComponent = forwardRef<NetworkGraphDisplayHandles, Netw
   const [rfNodes, setRfNodes, onNodesChange] = useNodesState(initialRFNodes);
   const [rfEdges, setRfEdges, onEdgesChange] = useEdgesState(initialRFEdges);
 
+  // Fit the graph with the root at the centre of the view: fit a box centred
+  // on the root that is just big enough to hold every node.
+  const centreOnRoot = useCallback(() => {
+    const nodes = getNodes();
+    const root = nodes.find(n => n.id === rootId);
+    if (!root) {
+      fitView();
+      return;
+    }
+    const size = (n: RFNode) => ({
+      w: n.measured?.width ?? n.width ?? 150,
+      h: n.measured?.height ?? n.height ?? 40,
+    });
+    const r = size(root);
+    const cx = root.position.x + r.w / 2;
+    const cy = root.position.y + r.h / 2;
+    let halfW = r.w / 2;
+    let halfH = r.h / 2;
+    nodes.forEach(n => {
+      const { w, h } = size(n);
+      halfW = Math.max(halfW, Math.abs(n.position.x - cx), Math.abs(n.position.x + w - cx));
+      halfH = Math.max(halfH, Math.abs(n.position.y - cy), Math.abs(n.position.y + h - cy));
+    });
+    fitBounds({ x: cx - halfW, y: cy - halfH, width: halfW * 2, height: halfH * 2 }, { padding: 0.1, duration: 0 });
+  }, [getNodes, fitBounds, fitView, rootId]);
+
   useImperativeHandle(ref, () => ({
     resetView() {
-      fitView();
+      centreOnRoot();
     }
   }));
 
@@ -140,6 +173,12 @@ const NetworkGraphDisplayComponent = forwardRef<NetworkGraphDisplayHandles, Netw
     setRfNodes(initialRFNodes);
     setRfEdges(initialRFEdges);
   }, [initialRFNodes, initialRFEdges]);
+
+  // Centre once React Flow has measured the nodes, and again when the graph
+  // or its root changes.
+  useEffect(() => {
+    if (nodesInitialized) centreOnRoot();
+  }, [nodesInitialized, centreOnRoot, preparedNodes]);
 
   // Callback to handle node drag, update position in rfNodes state
   const handleNodesChange = (changes: NodeChange[]) => {
