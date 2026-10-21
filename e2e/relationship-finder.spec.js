@@ -105,7 +105,7 @@ async function findPath(page, from, to, shot) {
     await expect(summary).toBeVisible({ timeout: 60000 });
     await expect(page.getByText('Searching for paths...')).toHaveCount(0, { timeout: 120000 });
     await page.screenshot({ path: `e2e-results/${shot}.png` });
-    const rows = page.locator('table tbody tr').filter({ has: page.getByRole('button', { name: 'View' }) });
+    const rows = page.locator('table tbody tr').filter({ has: page.getByRole('button', { name: 'View', exact: true }) });
     const paths = [];
     for (const row of await rows.all()) {
         const cells = await row.locator('td').allInnerTexts();
@@ -168,7 +168,8 @@ test('View opens the explorer on the path with its relationships highlighted', a
         return `Edge from ${r.source} to ${r.target}`;
     }).sort();
 
-    await page.getByRole('button', { name: 'View' }).first().click();
+    // The row's own View button (Splunk's header has a health "View" button too).
+    await page.locator('table tbody tr').getByRole('button', { name: 'View', exact: true }).first().click();
     await page.waitForURL(/\/start\?/);
     expect(new URL(page.url()).searchParams.get('entityId')).toBe('ipA');
 
