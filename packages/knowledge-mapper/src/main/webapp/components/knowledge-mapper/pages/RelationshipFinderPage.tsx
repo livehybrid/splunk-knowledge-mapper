@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import { getUniqueEntities, getRelationshipsForNodes } from '../services/splunkService';
+import { getUniqueEntities, getRelationshipsForNodes, edgeId } from '../services/splunkService';
 import Button from '@splunk/react-ui/Button';
 import Slider from '@splunk/react-ui/Slider';
 import Table from '@splunk/react-ui/Table';
@@ -49,6 +49,7 @@ const RelationshipFinderPage = () => {
     const [allEntities, setAllEntities] = useState<EntityNode[]>([]);
     const [foundPaths, setFoundPaths] = useState<FoundPath[]>([]);
     const [submittedQuery, setSubmittedQuery] = useState(false);
+    const [searchedDegrees, setSearchedDegrees] = useState(3);
 
     useEffect(() => {
         getUniqueEntities()
@@ -61,72 +62,64 @@ const RelationshipFinderPage = () => {
             });
     }, []);
 
-    const findPathsBidirectional = useCallback(async (startId: string, endId: string, maxDegrees: number) => {
+    // Breadth-first search out from the start entity, one Splunk search per
+    // hop, relationships taken in either direction. The first time the end
+    // entity is reached is a shortest path; walking back through each
+    // entity's parent gives it in order.
+    const findShortestPath = useCallback(async (startId: string, endId: string, maxDegrees: number) => {
         setIsLoading(true);
         setError(null);
         setFoundPaths([]);
-
-        let forwardQueue: string[] = [startId];
-        let backwardQueue: string[] = [endId];
-
-        let forwardVisited: { [key: string]: { path: EntityEdge[] } } = { [startId]: { path: [] } };
-        let backwardVisited: { [key:string]: { path: EntityEdge[] } } = { [endId]: { path: [] } };
-        
-        for (let i = 0; i < maxDegrees; i++) {
-            // Forward search
-            const forwardRels: any[] = await getRelationshipsForNodes(forwardQueue);
-            const newForwardQueue: string[] = [];
-            for (const rel of forwardRels) {
-                const neighbor = rel.source === forwardQueue[0] ? rel.target : rel.source;
-                if (!forwardVisited[neighbor]) {
-                    const newPath = [...forwardVisited[forwardQueue[0]].path, rel];
-                    forwardVisited[neighbor] = { path: newPath };
-                    newForwardQueue.push(neighbor);
-                    if (backwardVisited[neighbor]) {
-                        // Path found!
-                        const finalPathEdges = [...newPath, ...[...backwardVisited[neighbor].path].reverse()];
-                        const nodeIds = new Set(finalPathEdges.flatMap(e => [e.source, e.target]));
-                        const pathNodes = allEntities.filter(n => nodeIds.has(n.id));
-                        setFoundPaths([{ nodes: pathNodes, edges: finalPathEdges, degrees: i + 1 }]);
-                        setIsLoading(false);
-                        return;
+        try {
+            const parent = new Map<string, { from: string; rel: any } | null>([[startId, null]]);
+            let frontier: string[] = [startId];
+            for (let hop = 0; hop < maxDegrees && frontier.length > 0 && !parent.has(endId); hop++) {
+                const rels: any[] = await getRelationshipsForNodes(frontier);
+                const inFrontier = new Set(frontier);
+                const next: string[] = [];
+                for (const rel of rels) {
+                    for (const [from, to] of [[rel.source, rel.target], [rel.target, rel.source]]) {
+                        if (inFrontier.has(from) && !parent.has(to)) {
+                            parent.set(to, { from, rel });
+                            next.push(to);
+                        }
                     }
                 }
+                frontier = next;
             }
-            forwardQueue = newForwardQueue;
-
-            // Backward search
-            const backwardRels: any[] = await getRelationshipsForNodes(backwardQueue);
-            const newBackwardQueue: string[] = [];
-            for (const rel of backwardRels) {
-                const neighbor = rel.source === backwardQueue[0] ? rel.target : rel.source;
-                if (!backwardVisited[neighbor]) {
-                    const newPath = [...backwardVisited[backwardQueue[0]].path, rel];
-                    backwardVisited[neighbor] = { path: newPath };
-                    newBackwardQueue.push(neighbor);
-                    if (forwardVisited[neighbor]) {
-                        // Path found!
-                        const finalPathEdges = [...forwardVisited[neighbor].path, ...[...newPath].reverse()];
-                         const nodeIds = new Set(finalPathEdges.flatMap(e => [e.source, e.target]));
-                        const pathNodes = allEntities.filter(n => nodeIds.has(n.id));
-                        setFoundPaths([{ nodes: pathNodes, edges: finalPathEdges, degrees: i + 1 }]);
-                        setIsLoading(false);
-                        return;
-                    }
-                }
+            if (!parent.has(endId)) {
+                return;
             }
-            backwardQueue = newBackwardQueue;
+            const ids: string[] = [endId];
+            const rels: any[] = [];
+            for (let step = parent.get(endId); step; step = parent.get(step.from)) {
+                rels.unshift(step.rel);
+                ids.unshift(step.from);
+            }
+            const nodes = ids.map(id => allEntities.find(e => e.id === id)
+                || ({ id, label: id, type: undefined } as unknown as EntityNode));
+            const edges: EntityEdge[] = rels.map(rel => ({
+                id: edgeId(rel),
+                source: rel.source,
+                target: rel.target,
+                label: rel.label,
+                isAnomaly: rel.isAnomaly === 'true',
+            }));
+            setFoundPaths([{ nodes, edges, degrees: edges.length }]);
+        } catch (err) {
+            setError(err as Error);
+            console.error('Failed to find a path:', err);
+        } finally {
+            setIsLoading(false);
         }
-
-        setIsLoading(false);
-
     }, [allEntities]);
 
     const handleSearch = (e: React.FormEvent) => {
         e.preventDefault();
         setSubmittedQuery(true);
+        setSearchedDegrees(degrees);
         if (startEntity && endEntity) {
-            findPathsBidirectional(startEntity, endEntity, degrees);
+            findShortestPath(startEntity, endEntity, degrees);
         }
     };
 
@@ -171,7 +164,7 @@ const RelationshipFinderPage = () => {
                                     <label htmlFor="degrees">Max Degrees of Separation ({degrees})</label>
                                     <Slider
                                         min={1}
-                                        max={8}
+                                        max={5}
                                         step={1}
                                         value={degrees}
                                         onChange={(e: any, data: { value: number }) => setDegrees(data.value)}
@@ -187,7 +180,7 @@ const RelationshipFinderPage = () => {
                     <Card>
                         <Card.Header title="Results" />
                         <Card.Body>
-                            {submittedQuery ? `Found ${foundPaths.length} path(s) between entities within ${degrees} hops.` : 'Search results will appear here.'}
+                            {submittedQuery ? `Found ${foundPaths.length} path(s) between entities within ${searchedDegrees} hops.` : 'Search results will appear here.'}
                             {isLoading && <p>Searching for paths...</p>}
                             {error instanceof Error && <p style={{color: 'red'}}>Error loading data: {error.message}</p>}
                             {!isLoading && !error && (

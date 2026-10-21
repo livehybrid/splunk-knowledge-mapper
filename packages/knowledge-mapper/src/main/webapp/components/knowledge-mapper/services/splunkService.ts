@@ -75,6 +75,13 @@ export const getRelationshipsForNodes = async (nodes: string[]): Promise<any[]> 
 };
 
 /**
+ * The id the explorer gives a relationship. The Relationship Finder uses the
+ * same id in the path it hands the explorer, so the path can be highlighted.
+ */
+export const edgeId = (rel: { source: string; target: string; label: string }): string =>
+    `${rel.source}-${rel.target}-${rel.label}`;
+
+/**
  * Fetches graph data iteratively starting from a root entity.
  * @param startEntityId The ID of the entity to start the graph from.
  * @param degrees The number of degrees of separation to fetch.
@@ -98,10 +105,10 @@ export const getGraphDataIteratively = async (startEntityId: string, degrees: nu
 
         relationships.forEach((rel: any) => {
             // Add edge if not already present
-            const edgeId = `${rel.source}-${rel.target}-${rel.label}`;
-            if (!allEdges.has(edgeId)) {
-                allEdges.set(edgeId, {
-                    id: edgeId,
+            const id = edgeId(rel);
+            if (!allEdges.has(id)) {
+                allEdges.set(id, {
+                    id,
                     source: rel.source,
                     target: rel.target,
                     label: rel.label,
@@ -130,25 +137,3 @@ export const getGraphDataIteratively = async (startEntityId: string, degrees: nu
         edges: Array.from(allEdges.values()),
     };
 };
-
-/**
- * Finds the shortest path between two entities.
- * (This is a placeholder and will be implemented later)
- */
-export const findShortestPath = async (startNode: string, endNode: string): Promise<GraphData> => {
-    // For now, return a simple graph as a placeholder
-    console.log(`Finding shortest path between ${startNode} and ${endNode}`);
-    const nodes = await getUniqueEntities();
-    const start = nodes.find(n => n.id === startNode);
-
-    const end = nodes.find(n => n.id === endNode);
-    if (!start || !end) {
-        return { nodes: [], edges: [] };
-    }
-
-    return {
-        nodes: [start, end],
-        edges: [{ id: 'temp-edge', source: start.id, target: end.id, label: 'path_to_be_found' }]
-    }
-}
-
