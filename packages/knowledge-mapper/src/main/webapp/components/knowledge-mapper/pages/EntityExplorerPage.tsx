@@ -37,7 +37,12 @@ const EntityExplorerPage: React.FunctionComponent = () => {
 
     const [allEntities, setAllEntities] = useState<EntityNode[]>([]);
     const [selectedEntityId, setSelectedEntityId] = useState<string | undefined>(undefined);
-    const [degrees, setDegrees] = useState<number>(3);
+    // The Relationship Finder links here with the path's length as `degrees`,
+    // so the whole path is drawn.
+    const [degrees, setDegrees] = useState<number>(() => {
+        const fromUrl = Number(query.get('degrees'));
+        return Number.isInteger(fromUrl) && fromUrl >= 1 ? Math.min(fromUrl, 5) : 3;
+    });
     const [typeFilters, setTypeFilters] = useState<string[]>([]);
     const [graphData, setGraphData] = useState<GraphData | null>(null);
     const [isLoading, setIsLoading] = useState<boolean>(true);

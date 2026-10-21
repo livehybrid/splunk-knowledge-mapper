@@ -6,6 +6,7 @@ module.exports = defineConfig({
     testMatch: '*.spec.js',
     timeout: 240000,
     retries: 1,
+    workers: 1, // one Splunk serves every spec file
     outputDir: 'e2e-results',
     use: {
         baseURL: process.env.SPLUNK_WEB_URL || 'http://localhost:8000',
