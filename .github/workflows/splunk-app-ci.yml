@@ -228,6 +228,10 @@ jobs:
           APP_DIR: ${{ github.workspace }}/stage-app
           SPLUNK_IMAGE_TAG: ${{ matrix.splunk }}
         run: docker compose up -d --wait --wait-timeout 420
+      - name: Let the seeded specs rewrite the lookups
+        # Splunk's start-up takes ownership of the mounted app; the runner
+        # still has to overwrite the two lookup files.
+        run: sudo chmod a+rw stage-app/lookups/entities.csv stage-app/lookups/relationships.csv
       - name: Setup Node
         uses: actions/setup-node@v7
         with:

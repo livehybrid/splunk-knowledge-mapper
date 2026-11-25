@@ -63,6 +63,10 @@ async function checkExpansion(entities: Entity[], rels: Rel[], root: string, deg
     expect({ where, edges: sorted(graph.edges.map(key)) }).toEqual({ where, edges: sorted(wantEdges) });
 }
 
+const ents = (...ids: string[]): Entity[] => ids.map((id) => ({ id, label: id, type: 'host' }));
+let relCount = 0;
+const r = (source: string, target: string, label = 'connected_to'): Rel => ({ id: `y${relCount++}`, source, target, label });
+
 describe('the spy sees the searches (positive control)', () => {
     test('a search sent is recorded, and a repeated entity is caught', async () => {
         setWorld([{ id: 'a', label: 'A', type: 'host' }], []);
@@ -89,10 +93,6 @@ describe('degree expansion on seeded random graphs', () => {
 });
 
 describe('degree expansion, shapes', () => {
-    const ents = (...ids: string[]) => ids.map((id) => ({ id, label: id, type: 'host' }));
-    let n = 0;
-    const r = (source: string, target: string, label = 'connected_to'): Rel => ({ id: `y${n++}`, source, target, label });
-
     test('a triangle and a cycle are not searched twice', async () => {
         const rels = [r('a', 'b'), r('b', 'c'), r('c', 'a'), r('c', 'd'), r('d', 'e'), r('e', 'a')];
         for (const d of [1, 2, 3, 4]) await checkExpansion(ents('a', 'b', 'c', 'd', 'e'), rels, 'a', d);
