@@ -11,7 +11,9 @@
     "lint": "yarn run eslint && yarn run stylelint",
     "lint:ci": "yarn run eslint:ci && yarn run stylelint",
     "start": "webpack --watch",
-    "stylelint": "stylelint \"src/**/*.{js,jsx}\" --config stylelint.config.js"
+    "stylelint": "stylelint \"src/**/*.{js,jsx}\" --config stylelint.config.js",
+    "test": "jest",
+    "test:ci": "jest --ci"
   },
   "devDependencies": {
     "@babel/core": "^7.2.0",
@@ -50,6 +52,7 @@
     "eslint-plugin-react": "^7.21.5",
     "eslint-plugin-react-hooks": "^4.2.0",
     "html-webpack-plugin": "^5.5.3",
+    "jest": "^29.7.0",
     "lucide-react": "^0.395.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",

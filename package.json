@@ -9,7 +9,7 @@
     "lint": "yarn workspaces run lint",
     "setup": "yarn && yarn build",
     "start": "concurrently -n app,view \"yarn workspace @splunk/knowledge-mapper start\" \"yarn workspace @splunk/knowledge-mapper-view start\"",
-    "test": "yarn workspace @splunk/knowledge-mapper-view run test:ci",
+    "test": "yarn workspace @splunk/knowledge-mapper-view run test:ci && yarn workspace @splunk/knowledge-mapper run test:ci",
     "check-licenses": "license-checker --markdown --out THIRD_PARTY_LICENSES.md"
   },
   "devDependencies": {

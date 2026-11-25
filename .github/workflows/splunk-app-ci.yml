@@ -210,8 +210,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # 10.4.0 is the oldest Splunk this app is tested on; 10.6.0 is current.
-        splunk: ["10.4.0", "10.6.0"]
+        # The estate's support floor (10.0) and current (10.6.0).
+        splunk: ["10.0", "10.6.0"]
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
@@ -228,6 +228,10 @@ jobs:
           APP_DIR: ${{ github.workspace }}/stage-app
           SPLUNK_IMAGE_TAG: ${{ matrix.splunk }}
         run: docker compose up -d --wait --wait-timeout 420
+      - name: Let the seeded specs rewrite the lookups
+        # Splunk's start-up takes ownership of the mounted app; the runner
+        # still has to overwrite the two lookup files.
+        run: sudo chmod a+rw stage-app/lookups/entities.csv stage-app/lookups/relationships.csv
       - name: Setup Node
         uses: actions/setup-node@v7
         with:
@@ -244,6 +248,9 @@ jobs:
           SPLUNK_MGMT_URL: https://localhost:8089
           SPLUNK_USER: admin
           SPLUNK_PASSWORD: Changeme1!
+          # The seeded specs rewrite the mounted app's lookups here, and put
+          # the shipped ones back afterwards.
+          APP_LOOKUPS_DIR: ${{ github.workspace }}/stage-app/lookups
         run: npx playwright test
       - name: Upload screenshots and traces
         if: always()

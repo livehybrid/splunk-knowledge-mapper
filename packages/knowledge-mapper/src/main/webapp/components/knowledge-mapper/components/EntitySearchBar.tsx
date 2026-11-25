@@ -26,9 +26,14 @@ export const EntitySearchBar = ({ onSearch, isLoading, nodes, initialValue }: En
     }
   };
 
+  // Typing changes the value on every keystroke. Explore only once the value
+  // is an entity (an option was picked or an id typed in full): exploring on
+  // each keystroke disabled the box after the first character.
   const handleComboboxChange = (newValue: string) => {
     setSearchQuery(newValue);
-    onSearch(newValue);
+    if (nodes.some(node => node.id === newValue)) {
+      onSearch(newValue);
+    }
   };
 
   return (
@@ -38,7 +43,6 @@ export const EntitySearchBar = ({ onSearch, isLoading, nodes, initialValue }: En
         value={searchQuery}
         onValueChange={handleComboboxChange}
         placeholder="Search for an entity to begin..."
-        disabled={isLoading}
         className="flex-grow"
       />
       <Button

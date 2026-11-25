@@ -15,7 +15,9 @@ const runSearch = (search: string): Promise<any[]> => {
 
     return new Promise((resolve, reject) => {
         const results: any[] = [];
-        const subscription = searchJob.getResults().subscribe({
+        // count 0: every row. Splunk's results endpoint otherwise returns the
+        // first 100, which silently dropped entities and relationships.
+        const subscription = searchJob.getResults({ count: 0 }).subscribe({
             next: (data: any) => {
                 if (data && data.results && Array.isArray(data.results)) {
                     // This handles the final API response format with a 'results' array.
@@ -69,8 +71,12 @@ export const getRelationshipsForNodes = async (nodes: string[]): Promise<any[]> 
     if (nodes.length === 0) {
         return [];
     }
-    const nodeFilter = `(source IN (${nodes.map(n => `"${n}"`).join(',')})) OR (target IN (${nodes.map(n => `"${n}"`).join(',')}))`;
-    const search = `| \`get_relationships_for_nodes(node_filter="${nodeFilter}")\``;
+    // An eval expression for the macro's `where`, which compares ids
+    // case-sensitively as the lookups do. Inside the quoted macro argument
+    // its quotes are escaped.
+    const list = nodes.map(n => `"${n}"`).join(',');
+    const nodeFilter = `in(source,${list}) OR in(target,${list})`;
+    const search = `| \`get_relationships_for_nodes(node_filter="${nodeFilter.replace(/"/g, '\\"')}")\``;
     return runSearch(search);
 };
 
