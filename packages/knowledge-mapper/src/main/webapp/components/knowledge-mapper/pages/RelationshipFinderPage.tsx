@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { getUniqueEntities, getRelationshipsForNodes, edgeId } from '../services/splunkService';
+import { findShortestPath as findRoute } from '../lib/shortestPath';
 import Button from '@splunk/react-ui/Button';
 import Slider from '@splunk/react-ui/Slider';
 import Table from '@splunk/react-ui/Table';
@@ -62,40 +63,16 @@ const RelationshipFinderPage = () => {
             });
     }, []);
 
-    // Breadth-first search out from the start entity, one Splunk search per
-    // hop, relationships taken in either direction. The first time the end
-    // entity is reached is a shortest path; walking back through each
-    // entity's parent gives it in order.
     const findShortestPath = useCallback(async (startId: string, endId: string, maxDegrees: number) => {
         setIsLoading(true);
         setError(null);
         setFoundPaths([]);
         try {
-            const parent = new Map<string, { from: string; rel: any } | null>([[startId, null]]);
-            let frontier: string[] = [startId];
-            for (let hop = 0; hop < maxDegrees && frontier.length > 0 && !parent.has(endId); hop++) {
-                const rels: any[] = await getRelationshipsForNodes(frontier);
-                const inFrontier = new Set(frontier);
-                const next: string[] = [];
-                for (const rel of rels) {
-                    for (const [from, to] of [[rel.source, rel.target], [rel.target, rel.source]]) {
-                        if (inFrontier.has(from) && !parent.has(to)) {
-                            parent.set(to, { from, rel });
-                            next.push(to);
-                        }
-                    }
-                }
-                frontier = next;
-            }
-            if (!parent.has(endId)) {
+            const route = await findRoute(startId, endId, maxDegrees, getRelationshipsForNodes);
+            if (!route) {
                 return;
             }
-            const ids: string[] = [endId];
-            const rels: any[] = [];
-            for (let step = parent.get(endId); step; step = parent.get(step.from)) {
-                rels.unshift(step.rel);
-                ids.unshift(step.from);
-            }
+            const { ids, rels } = route;
             const nodes = ids.map(id => allEntities.find(e => e.id === id)
                 || ({ id, label: id, type: undefined } as unknown as EntityNode));
             const edges: EntityEdge[] = rels.map(rel => ({
