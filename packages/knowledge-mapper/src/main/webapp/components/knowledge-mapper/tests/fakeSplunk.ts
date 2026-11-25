@@ -51,14 +51,17 @@ function quotedList(text: string): string[] {
     });
 }
 
-// Reads the node filter the way the macro's `search` does: an OR of
-// `source IN (...)` and `target IN (...)`. Anything else is refused loudly,
-// so a change to the filter's shape cannot pass by accident.
+// Reads the node filter the way the macro's `where` does, after Splunk
+// unescapes the quoted macro argument: `in(source,...) OR in(target,...)`.
+// Anything else is refused loudly, so a change to the filter's shape cannot
+// pass by accident.
 export function filterLists(search: string): { source: string[]; target: string[] } | null {
     const m = search.match(RELATIONSHIPS);
     if (!m) return null;
-    const f = m[1].match(/^\(source IN \(([^)]*)\)\) OR \(target IN \(([^)]*)\)\)$/);
-    if (!f) throw new Error(`fake Splunk: unexpected node filter ${m[1]}`);
+    if (/(^|[^\\])"/.test(m[1])) throw new Error(`fake Splunk: unescaped quote in macro argument ${m[1]}`);
+    const arg = m[1].replace(/\\"/g, '"');
+    const f = arg.match(/^in\(source,([^)]*)\) OR in\(target,([^)]*)\)$/);
+    if (!f) throw new Error(`fake Splunk: unexpected node filter ${arg}`);
     return { source: quotedList(f[1]), target: quotedList(f[2]) };
 }
 

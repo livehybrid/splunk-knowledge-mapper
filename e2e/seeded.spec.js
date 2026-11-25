@@ -63,10 +63,11 @@ test('get_unique_entities lists every entity from the lookup, renamed', async ()
     expect(got.map((r) => pick(r, fields))).toEqual(want);
 });
 
-// The filter the explorer and finder send, built here to the same contract.
+// The filter the explorer and finder send, built here to the same contract:
+// an eval expression, its quotes escaped inside the quoted macro argument.
 const nodeFilter = (ids) => {
     const list = ids.map((id) => `"${id}"`).join(',');
-    return `(source IN (${list})) OR (target IN (${list}))`;
+    return `in(source,${list}) OR in(target,${list})`.replace(/"/g, '\\"');
 };
 
 function expectedRelationships(ids) {
