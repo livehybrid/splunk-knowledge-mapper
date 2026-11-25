@@ -76,11 +76,14 @@ test('the explorer loads with 5,000 entities, and the search finds a late one', 
     console.log(`first graph drawn after ${loadMs} ms (${first.labels.length} entities)`);
     await page.screenshot({ path: 'e2e-results/scale-loaded.png' });
 
-    // Type part of a late entity's name, as a person would, and pick it.
+    // Clear the box, type a late entity's name as a person would, and pick it.
     const late = entities[4990];
     const input = page.getByPlaceholder('Search for an entity to begin...');
     await input.click();
+    await input.press('ControlOrMeta+a');
+    await input.press('Backspace');
     await input.pressSequentially(late.label, { delay: 60 });
+    await expect(input).toHaveValue(late.label);
     const option = page.getByRole('option', { name: `${late.label} (${late.id})` });
     await expect(option).toBeVisible({ timeout: 30000 });
     await option.click();
