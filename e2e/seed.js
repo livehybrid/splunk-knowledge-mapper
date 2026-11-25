@@ -35,7 +35,9 @@ function seed(files) {
 
 function restore() {
     if (!DIR || !fs.existsSync(BACKUP)) return;
-    for (const f of FILES) fs.copyFileSync(path.join(BACKUP, f), path.join(DIR, f));
+    // Write the contents back rather than copy the file: Splunk owns the
+    // lookups, and a copy also tries to set their mode.
+    for (const f of FILES) fs.writeFileSync(path.join(DIR, f), fs.readFileSync(path.join(BACKUP, f)));
     fs.rmSync(BACKUP, { recursive: true });
 }
 
