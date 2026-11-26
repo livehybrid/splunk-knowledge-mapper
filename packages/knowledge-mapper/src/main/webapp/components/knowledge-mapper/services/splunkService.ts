@@ -1,6 +1,7 @@
 import { GraphData, EntityNode, EntityEdge } from '../types/entityExplorer';
 import SearchJob from '@splunk/search-job';
 import { app, username } from '@splunk/splunk-utils/config';
+import { md5Hex } from '../lib/md5';
 
 // Helper to create and dispatch a search job, returning the results.
 const runSearch = (search: string): Promise<any[]> => {
@@ -71,11 +72,13 @@ export const getRelationshipsForNodes = async (nodes: string[]): Promise<any[]> 
     if (nodes.length === 0) {
         return [];
     }
-    // An eval expression for the macro's `where`, which compares ids
-    // case-sensitively as the lookups do. Inside the quoted macro argument
-    // its quotes are escaped.
-    const list = nodes.map(n => `"${n}"`).join(',');
-    const nodeFilter = `in(source,${list}) OR in(target,${list})`;
+    // An eval expression for the macro's `where`. Ids are named by the MD5 of
+    // their text, compared with md5(source) and md5(target), so an id never
+    // appears in the SPL: quotes, commas, backslashes, backticks and `$` in an
+    // id cannot break the quoted macro argument or the eval string, and the
+    // comparison stays exact (case-sensitive), as the lookups are.
+    const list = Array.from(new Set(nodes)).map(n => `"${md5Hex(n)}"`).join(',');
+    const nodeFilter = `in(md5(source),${list}) OR in(md5(target),${list})`;
     const search = `| \`get_relationships_for_nodes(node_filter="${nodeFilter.replace(/"/g, '\\"')}")\``;
     return runSearch(search);
 };
@@ -133,8 +136,9 @@ export const getGraphDataIteratively = async (startEntityId: string, degrees: nu
         });
     }
 
-    // Now, fetch the details for all unique nodes we've gathered
-    const allNodeIds = Array.from(new Set([...allEdges.values()].flatMap((e: any) => [e.source, e.target])));
+    // Now, fetch the details for all unique nodes we've gathered. The start
+    // entity is drawn even when it has no relationships at all.
+    const allNodeIds = Array.from(new Set([startEntityId, ...[...allEdges.values()].flatMap((e: any) => [e.source, e.target])]));
     const allEntities = await getUniqueEntities();
     const finalNodes = allEntities.filter(node => allNodeIds.includes(node.id));
 
