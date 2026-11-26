@@ -54,11 +54,12 @@ async function checkExpansion(entities: Entity[], rels: Rel[], root: string, deg
     expect(entitySearches()).toBe(1);
 
     // Drawn: the entities within N degrees (an entity with no relationships
-    // at all draws an empty graph) and every relationship touching an entity
+    // at all is drawn on its own) and every relationship touching an entity
     // within N-1 degrees.
     const near = new Set(within(degrees - 1));
     const wantEdges = new Set(rels.filter((r) => near.has(r.source) || near.has(r.target)).map(key));
-    const wantNodes = wantEdges.size ? within(degrees) : [];
+    const known = new Set(entities.map((e) => e.id));
+    const wantNodes = within(degrees).filter((id) => known.has(id));
     expect({ where, nodes: sorted(graph.nodes.map((n) => n.id)) }).toEqual({ where, nodes: sorted(wantNodes) });
     expect({ where, edges: sorted(graph.edges.map(key)) }).toEqual({ where, edges: sorted(wantEdges) });
 }
@@ -69,7 +70,7 @@ const r = (source: string, target: string, label = 'connected_to'): Rel => ({ id
 
 describe('the spy sees the searches (positive control)', () => {
     test('a search sent is recorded, and a repeated entity is caught', async () => {
-        setWorld([{ id: 'a', label: 'A', type: 'host' }], []);
+        setWorld([{ id: 'a', label: 'A', type: 'host' }, { id: 'b', label: 'B', type: 'host' }], []);
         await getRelationshipsForNodes(['a', 'b']);
         await getRelationshipsForNodes(['a']);
         await getUniqueEntities();
@@ -129,5 +130,52 @@ describe('more than one page of Splunk results', () => {
         const leaves = Array.from({ length: 250 }, (_, i) => `leaf${i}`);
         const rels = leaves.map((l) => r('hub', l));
         await checkExpansion(ents('hub', ...leaves), rels, 'hub', 1);
+    });
+});
+
+describe('an entity with no relationships', () => {
+    test('is drawn on its own, at every depth', async () => {
+        const rels = [r('a', 'b')];
+        for (const d of [1, 2, 3]) await checkExpansion(ents('a', 'b', 'loner'), rels, 'loner', d);
+        setWorld(ents('a', 'b', 'loner'), rels);
+        const graph = await getGraphDataIteratively('loner', 2);
+        expect(graph.nodes.map((n) => n.id)).toEqual(['loner']);
+        expect(graph.edges).toEqual([]);
+    });
+
+    test('an id that is not an entity draws nothing', async () => {
+        setWorld(ents('a', 'b'), [r('a', 'b')]);
+        const graph = await getGraphDataIteratively('not-an-entity', 2);
+        expect(graph).toEqual({ nodes: [], edges: [] });
+    });
+});
+
+describe('ids with characters that mean something in SPL', () => {
+    // Quotes, commas, backslashes, backticks, `$`, brackets, a pipe, spaces,
+    // non-ASCII text, a leading "=" and an id that looks like the filter.
+    const AWKWARD = ['say "hi"', 'a,b', 'c:\\temp\\', '`macro`', '$tok$', 'in(source,"x")', 'x) OR (1==1',
+        'p|q', ' spaced ', 'Zoë 日本 🚀', '=SUM(A1)', "it's", '"', ',', '\\'];
+
+    test('every awkward id is searched for and matched exactly', async () => {
+        // A ring through every awkward id, plus a plain decoy per id that
+        // differs only in case or by a character the old filter would drop.
+        const rels = AWKWARD.map((id, i) => r(id, AWKWARD[(i + 1) % AWKWARD.length]));
+        const decoys = ['SAY "HI"', 'ab', 'a', 'b', 'c:temp', 'macro', 'tok'];
+        decoys.forEach((d) => rels.push(r(d, `${d}-leaf`)));
+        const world = ents(...AWKWARD, ...decoys, ...decoys.map((d) => `${d}-leaf`));
+        for (const root of AWKWARD) {
+            for (const d of [1, 2]) await checkExpansion(world, rels, root, d);
+        }
+    });
+
+    test('the search text never contains an id', async () => {
+        setWorld(ents(...AWKWARD), []);
+        await getRelationshipsForNodes(AWKWARD);
+        expect(searches).toHaveLength(1);
+        const text = searches[0].search;
+        const arg = (text.match(/node_filter="([\s\S]*)"\)`/) || [])[1] || '';
+        // Every quote inside the macro argument is escaped; only hex digests
+        // are quoted.
+        expect(arg.replace(/\\"[0-9a-f]{32}\\"/g, '')).toMatch(/^in\(md5\(source\),(,)*\) OR in\(md5\(target\),(,)*\)$/);
     });
 });

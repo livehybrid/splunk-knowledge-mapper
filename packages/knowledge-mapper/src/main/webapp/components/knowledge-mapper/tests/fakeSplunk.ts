@@ -43,38 +43,62 @@ export function setWorld(entities: Entity[], relationships: Rel[]): void {
 const UNIQUE_ENTITIES = /^\|\s*`get_unique_entities`\s*$/;
 const RELATIONSHIPS = /^\|\s*`get_relationships_for_nodes\(node_filter="([\s\S]*)"\)`\s*$/;
 
-function quotedList(text: string): string[] {
+// Node's own MD5, not the app's lib/md5.ts: the fake evaluates md5() the way
+// Splunk's eval does, by a route the app's code never uses.
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const nodeCrypto = require('crypto');
+export const md5 = (text: string): string => nodeCrypto.createHash('md5').update(text, 'utf8').digest('hex');
+
+function hexList(text: string): string[] {
     return text.split(',').map((item) => {
-        const m = item.trim().match(/^"(.*)"$/);
+        const m = item.trim().match(/^"([0-9a-f]{32})"$/);
         if (!m) throw new Error(`fake Splunk: cannot read list item ${item}`);
         return m[1];
     });
 }
 
+// Every id the world knows, by its MD5, so a test can say which entities a
+// search named. An unknown hash reads back as "?<hash>".
+function idsFor(hashes: string[]): string[] {
+    const known = new Map<string, string>();
+    for (const e of world.entities) known.set(md5(e.id), e.id);
+    for (const r of world.relationships) {
+        known.set(md5(r.source), r.source);
+        known.set(md5(r.target), r.target);
+    }
+    return hashes.map((h) => known.get(h) || `?${h}`);
+}
+
 // Reads the node filter the way the macro's `where` does, after Splunk
-// unescapes the quoted macro argument: `in(source,...) OR in(target,...)`.
+// unescapes the quoted macro argument:
+// `in(md5(source),"<hex>",...) OR in(md5(target),"<hex>",...)`.
 // Anything else is refused loudly, so a change to the filter's shape cannot
 // pass by accident.
-export function filterLists(search: string): { source: string[]; target: string[] } | null {
+function filterHashes(search: string): { source: string[]; target: string[] } | null {
     const m = search.match(RELATIONSHIPS);
     if (!m) return null;
     if (/(^|[^\\])"/.test(m[1])) throw new Error(`fake Splunk: unescaped quote in macro argument ${m[1]}`);
     const arg = m[1].replace(/\\"/g, '"');
-    const f = arg.match(/^in\(source,([^)]*)\) OR in\(target,([^)]*)\)$/);
+    const f = arg.match(/^in\(md5\(source\),([^)]*)\) OR in\(md5\(target\),([^)]*)\)$/);
     if (!f) throw new Error(`fake Splunk: unexpected node filter ${arg}`);
-    return { source: quotedList(f[1]), target: quotedList(f[2]) };
+    return { source: hexList(f[1]), target: hexList(f[2]) };
+}
+
+export function filterLists(search: string): { source: string[]; target: string[] } | null {
+    const h = filterHashes(search);
+    return h && { source: idsFor(h.source), target: idsFor(h.target) };
 }
 
 function answer(search: string): Record<string, string>[] {
     if (UNIQUE_ENTITIES.test(search)) {
         return world.entities.map((e) => ({ entityId: e.id, name: e.label, entityType: e.type }));
     }
-    const lists = filterLists(search);
+    const lists = filterHashes(search);
     if (lists) {
         const sources = new Set(lists.source);
         const targets = new Set(lists.target);
         return world.relationships
-            .filter((r) => sources.has(r.source) || targets.has(r.target))
+            .filter((r) => sources.has(md5(r.source)) || targets.has(md5(r.target)))
             .map((r) => ({
                 id: r.id,
                 source: r.source,
